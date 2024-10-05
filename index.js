@@ -58,7 +58,7 @@ async function fetchAllMangaLinks() {
           `document.querySelector(".current_page").textContent === "${
             currentPage + 1
           }"`,
-          { timeout: 3000000000 }, // Increase timeout to 30 seconds
+          { timeout: 10000000 }, // Increase timeout to 30 seconds
         );
         currentPage++;
       } else {
