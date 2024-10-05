@@ -22,7 +22,7 @@ async function fetchMangaLinks(page) {
     });
     return links;
   });
-  console.log(`Fetched ${mangaLinks.length} links on current page`);
+  // console.log(`Fetched ${mangaLinks.length} links on current page`);
   return mangaLinks;
 }
 
@@ -43,9 +43,9 @@ async function fetchAllMangaLinks() {
     try {
       const mangaLinks = await fetchMangaLinks(page);
       allMangaLinks.push(...mangaLinks);
-      console.log(`Fetched ${allMangaLinks.length} manga links`);
+      // console.log(`Fetched ${allMangaLinks.length} manga links`);
 
-      await page.screenshot({ path: `page-${currentPage}.png` });
+      // await page.screenshot({ path: `page-${currentPage}.png` });
       // Check if there is a next page button and click it
       const nextPageButton = await page.$(
         `span.page > a[href="javascript:LoadListMangaPage(${
@@ -58,7 +58,7 @@ async function fetchAllMangaLinks() {
           `document.querySelector(".current_page").textContent === "${
             currentPage + 1
           }"`,
-          { timeout: 300000 }, // Increase timeout to 30 seconds
+          { timeout: 3000000000 }, // Increase timeout to 30 seconds
         );
         currentPage++;
       } else {
@@ -102,11 +102,27 @@ async function fetchMangaDetails(mangaLinks) {
 
         const pageViews = document.querySelector('#PageViews').innerText.trim();
         const likeCount = document.querySelector('#LikeCount').innerText.trim();
-        const status = document
-          .querySelector('.description span.color-red')
-          .innerText.trim();
-
-        return { name, author, genre, summary, pageViews, likeCount, status };
+        const spanColorRed = document.querySelectorAll(
+          '.description span.color-red',
+        );
+        const status =
+          spanColorRed.length != 0
+            ? spanColorRed[-1].innerText.trim()
+            : spanColorRed[0].innerText.trim();
+        const anotherName = Array.from(spanColorRed)
+          .slice(0, -1)
+          .map((span) => span.innerText.trim())
+          .join(', ');
+        return {
+          name,
+          author,
+          genre,
+          summary,
+          pageViews,
+          likeCount,
+          status,
+          anotherName,
+        };
       });
       mangaDetails.push({ ...manga, ...details });
     } catch (error) {
