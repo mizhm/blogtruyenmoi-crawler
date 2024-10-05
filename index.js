@@ -25,8 +25,9 @@ async function fetchMangaLinks(page) {
 
 async function fetchAllMangaLinks() {
   const browser = await puppeteer.launch({
-    // headless: false,
+    headless: true,
     protocolTimeout: 120000,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Puppeteer on GitHub Actions
   }); // Increase protocolTimeout to 120 seconds
   const page = await browser.newPage();
   await page.goto(baseUrl, { waitUntil: 'networkidle2' });
@@ -71,8 +72,9 @@ async function fetchAllMangaLinks() {
 
 async function fetchMangaDetails(mangaLinks) {
   const browser = await puppeteer.launch({
-    // headless: false,
+    headless: true,
     protocolTimeout: 120000,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Puppeteer on GitHub Actions
   });
   const page = await browser.newPage();
   const mangaDetails = [];
