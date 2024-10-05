@@ -1,8 +1,10 @@
 const puppeteer = require('puppeteer');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const xlsx = require('xlsx');
 
+puppeteer.use(StealthPlugin());
+
 const baseUrl = 'https://blogtruyenmoi.com/danhsach/tatca';
-const maxPages = 100; // Set a maximum page limit to prevent infinite loops
 
 async function fetchMangaLinks(page) {
   const mangaLinks = await page.evaluate(() => {
@@ -56,7 +58,7 @@ async function fetchAllMangaLinks() {
           `document.querySelector(".current_page").textContent === "${
             currentPage + 1
           }"`,
-          { timeout: 30000 }, // Increase timeout to 30 seconds
+          { timeout: 300000 }, // Increase timeout to 30 seconds
         );
         currentPage++;
       } else {
