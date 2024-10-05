@@ -39,7 +39,7 @@ async function fetchAllMangaLinks() {
   let currentPage = 1;
   let hasNextPage = true;
 
-  while (hasNextPage && currentPage <= maxPages) {
+  while (hasNextPage) {
     try {
       const mangaLinks = await fetchMangaLinks(page);
       allMangaLinks.push(...mangaLinks);
