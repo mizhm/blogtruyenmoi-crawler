@@ -31,3 +31,8 @@ jobs:
         with:
           name: manga-details
           path: manga_details.xlsx
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v3
+        with:
+          name: screenshots
+          path: '*.png'

@@ -20,6 +20,7 @@ async function fetchMangaLinks(page) {
     });
     return links;
   });
+  console.log(`Fetched ${mangaLinks.length} links on current page`);
   return mangaLinks;
 }
 
@@ -42,6 +43,7 @@ async function fetchAllMangaLinks() {
       allMangaLinks.push(...mangaLinks);
       console.log(`Fetched ${allMangaLinks.length} manga links`);
 
+      await page.screenshot({ path: `page-${currentPage}.png` });
       // Check if there is a next page button and click it
       const nextPageButton = await page.$(
         `span.page > a[href="javascript:LoadListMangaPage(${
