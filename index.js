@@ -13,7 +13,7 @@ async function fetchMangaLinks(page) {
       const link = element.getAttribute('href');
       if (link) {
         links.push({
-          title: element.textContent.trim(),
+          title: element.textContent.trim().replace(/:$/, ''), // Remove colon at the end
           link: link.startsWith('http')
             ? link
             : `https://blogtruyenmoi.com${link}`,
@@ -89,8 +89,9 @@ async function fetchMangaDetails(mangaLinks) {
       const details = await page.evaluate(() => {
         const name = document.querySelector('h1').innerText.trim();
         const author = document
-          .querySelector('a[href*="/tac-gia/"]')
-          .innerText.trim();
+          .querySelectorAll('a[href*="/tac-gia/"]')
+          .map((el) => el.innerText.trim())
+          .join(', ');
         const genre = Array.from(
           document.querySelectorAll('.description a[href*="/theloai/"]'),
         )
@@ -107,12 +108,15 @@ async function fetchMangaDetails(mangaLinks) {
         );
         const status =
           spanColorRed.length != 0
-            ? spanColorRed[-1].innerText.trim()
+            ? spanColorRed[spanColorRed.length - 1].innerText.trim()
             : spanColorRed[0].innerText.trim();
-        const anotherName = Array.from(spanColorRed)
-          .slice(0, -1)
-          .map((span) => span.innerText.trim())
-          .join(', ');
+        const anotherName =
+          spanColorRed.length > 1
+            ? Array.from(spanColorRed)
+                .slice(0, -1)
+                .map((span) => span.innerText.trim())
+                .join(', ')
+            : 'Khong co ten khac';
         return {
           name,
           author,
