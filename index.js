@@ -25,7 +25,7 @@ async function fetchMangaLinks(page) {
 
 async function fetchAllMangaLinks() {
   const browser = await puppeteer.launch({
-    headless: false,
+    // headless: false,
     protocolTimeout: 120000,
   }); // Increase protocolTimeout to 120 seconds
   const page = await browser.newPage();
