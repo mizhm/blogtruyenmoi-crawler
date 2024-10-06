@@ -10,7 +10,7 @@ const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
 const totalPages = 1301;
 const chunkSize = 10;
 const maxRetries = 3;
-const requestTimeout = 10000; // 10 seconds
+const requestTimeout = 1000 * 60 * 60 * 24 * 365; // 10 seconds
 
 async function fetchMangaLinks(page, pageNumber) {
   const url = `${baseUrl}?key=tatca&orderBy=1&p=${pageNumber}`;
