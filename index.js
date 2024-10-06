@@ -1,11 +1,13 @@
-const { timeout } = require('puppeteer');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const xlsx = require('xlsx');
+const fs = require('fs');
 
 puppeteer.use(StealthPlugin());
 
 const baseUrl = 'https://blogtruyenmoi.com/danhsach/tatca';
+const totalPages = 1301;
+const chunkSize = 30;
 
 async function fetchMangaLinks(page) {
   const mangaLinks = await page.evaluate(() => {
@@ -27,7 +29,7 @@ async function fetchMangaLinks(page) {
   return mangaLinks;
 }
 
-async function fetchAllMangaLinks() {
+async function fetchMangaLinksChunk(startPage, endPage) {
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Puppeteer on GitHub Actions
@@ -38,13 +40,22 @@ async function fetchAllMangaLinks() {
   await page.goto(baseUrl, {
     waitUntil: 'networkidle2',
     timeout: 1000 * 60 * 60 * 24,
-  }); // Increase timeout to 120 seconds
+  });
+
+  await page.evaluate((startPage) => {
+    window.LoadListMangaPage(startPage);
+  }, startPage);
+
+  await page.waitForFunction(
+    `document.querySelector(".current_page").textContent === "${startPage}"`,
+    { timeout: 1000 * 60 * 60 * 24 },
+  );
 
   const allMangaLinks = [];
-  let currentPage = 1;
+  let currentPage = startPage;
   let hasNextPage = true;
 
-  while (hasNextPage) {
+  while (hasNextPage && currentPage <= endPage) {
     try {
       const mangaLinks = await fetchMangaLinks(page);
       allMangaLinks.push(...mangaLinks);
@@ -75,6 +86,18 @@ async function fetchAllMangaLinks() {
   }
 
   await browser.close();
+  return allMangaLinks;
+}
+
+async function fetchAllMangaLinks() {
+  const allMangaLinks = [];
+  for (let i = 0; i < totalPages; i += chunkSize) {
+    const startPage = i + 1;
+    const endPage = Math.min(i + chunkSize, totalPages);
+    console.log(`Fetching pages ${startPage} to ${endPage}`);
+    const mangaLinksChunk = await fetchMangaLinksChunk(startPage, endPage);
+    allMangaLinks.push(...mangaLinksChunk);
+  }
   return allMangaLinks;
 }
 
@@ -155,8 +178,15 @@ async function saveToExcel(mangaDetails) {
   console.log('Manga details saved to manga_details.xlsx');
 }
 
+async function saveToJson(fileName, mangaDetails) {
+  const jsonContent = JSON.stringify(mangaDetails, null, 2);
+  fs.writeFileSync(fileName, jsonContent, 'utf8');
+  console.log('saved to', fileName);
+}
+
 async function main() {
   const mangaLinks = await fetchAllMangaLinks();
+  await saveToJson('manga_links.json', mangaLinks);
   const mangaDetails = await fetchMangaDetails(mangaLinks);
   await saveToExcel(mangaDetails);
 }
