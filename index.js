@@ -56,7 +56,8 @@ async function fetchAllMangaLinks() {
         await page.waitForFunction(
           `document.querySelector(".current_page").textContent === "${
             currentPage + 1
-          }"`
+          }"`,
+          {timeout: 0}
         );
         currentPage++;
       } else {
