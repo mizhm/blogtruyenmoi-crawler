@@ -2,6 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const xlsx = require('xlsx');
+const HttpsProxyAgent = require('https-proxy-agent'); // Import the https-proxy-agent package
 
 const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
 const totalPages = 1301;
@@ -9,12 +10,32 @@ const chunkSize = 10;
 const maxRetries = 3;
 const requestTimeout = 10000; // 10 seconds
 
+// Free proxy list (example)
+const freeProxies = [
+  'http://51.158.68.68:8811',
+  'http://51.158.123.35:8811',
+  'http://51.158.111.229:8811',
+  'http://51.158.108.135:8811',
+  'http://51.158.111.242:8811',
+];
+
+// Function to get a random proxy from the list
+function getRandomProxy() {
+  const randomIndex = Math.floor(Math.random() * freeProxies.length);
+  return freeProxies[randomIndex];
+}
+
+// Configure proxy
+const proxy = getRandomProxy();
+const agent = new HttpsProxyAgent(proxy);
+
 const axiosInstance = axios.create({
   headers: {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
   },
   timeout: requestTimeout,
+  httpsAgent: agent, // Use the proxy agent
 });
 
 async function fetchMangaLinks(pageNumber) {
@@ -92,7 +113,7 @@ async function fetchMangaDetails(mangaLinks) {
       try {
         const response = await axiosInstance.get(manga.link);
         const $ = cheerio.load(response.data);
-        const name = manga.title;
+        const name = $('h1').text().trim();
         const author = $('a[href*="/tac-gia/"]')
           .map((i, el) => $(el).text().trim())
           .get()
