@@ -16,7 +16,10 @@ const requestTimeout = 10000; // 10 seconds
 let axiosInstance;
 
 async function initializeAxiosInstance() {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
   const page = await browser.newPage();
   await page.goto(baseUrl, { waitUntil: 'networkidle2' });
 
@@ -31,6 +34,8 @@ async function initializeAxiosInstance() {
       Cookie: cookies
         .map((cookie) => `${cookie.name}=${cookie.value}`)
         .join('; '),
+      Referer: baseUrl,
+      'Accept-Language': 'en-US,en;q=0.9',
     },
     timeout: requestTimeout,
   });
