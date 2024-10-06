@@ -7,7 +7,7 @@ puppeteer.use(StealthPlugin());
 
 const baseUrl = 'https://blogtruyenmoi.com/danhsach/tatca';
 const totalPages = 1301;
-const chunkSize = 30;
+const chunkSize = 10;
 
 async function fetchMangaLinks(page) {
   const mangaLinks = await page.evaluate(() => {
