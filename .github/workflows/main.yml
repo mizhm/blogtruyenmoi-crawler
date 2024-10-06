@@ -14,8 +14,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '20'
+
       - name: Install dependencies
-        run: pnpm install
+        run: npm install
 
       - name: Run manga crawler
         run: node index.js
