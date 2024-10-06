@@ -8,6 +8,7 @@ puppeteer.use(StealthPlugin());
 const baseUrl = 'https://blogtruyenmoi.com/danhsach/tatca';
 const totalPages = 1301;
 const chunkSize = 10;
+const maxRetries = 5;
 
 async function fetchMangaLinks(page) {
   const mangaLinks = await page.evaluate(() => {
@@ -28,14 +29,15 @@ async function fetchMangaLinks(page) {
   return mangaLinks;
 }
 
-async function fetchMangaLinksChunk(startPage, endPage) {
+async function fetchMangaLinksChunk(startPage, endPage, retries = 0) {
   try {
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Puppeteer on GitHub Actions
       timeout: 120000,
       defaultViewport: null,
-    }); // Increase protocolTimeout to 120 seconds
+    });
+
     const page = await browser.newPage();
     await page.goto(baseUrl, {
       waitUntil: 'networkidle2',
@@ -59,6 +61,7 @@ async function fetchMangaLinksChunk(startPage, endPage) {
       try {
         const mangaLinks = await fetchMangaLinks(page);
         allMangaLinks.push(...mangaLinks);
+        // console.log(allMangaLinks.length);
 
         // Check if there is a next page button and click it
         const nextPageButton = await page.$(
@@ -87,7 +90,13 @@ async function fetchMangaLinksChunk(startPage, endPage) {
     await browser.close();
     return allMangaLinks;
   } catch (error) {
-    fetchMangaLinksChunk(startPage, endPage);
+    if (retries < maxRetries) {
+      return fetchMangaLinksChunk(startPage, endPage, retries + 1);
+    } else {
+      throw new Error(
+        `Failed to fetch chunk ${startPage} to ${endPage} after ${maxRetries} retries`,
+      );
+    }
   }
 }
 
