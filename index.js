@@ -33,13 +33,13 @@ async function fetchMangaLinksChunk(startPage, endPage) {
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Puppeteer on GitHub Actions
-    timeout: 1000 * 60 * 60 * 24,
+    timeout: 120000,
     defaultViewport: null,
   }); // Increase protocolTimeout to 120 seconds
   const page = await browser.newPage();
   await page.goto(baseUrl, {
     waitUntil: 'networkidle2',
-    timeout: 1000 * 60 * 60 * 24,
+    timeout: 60000,
   });
 
   await page.evaluate((startPage) => {
@@ -48,7 +48,7 @@ async function fetchMangaLinksChunk(startPage, endPage) {
 
   await page.waitForFunction(
     `document.querySelector(".current_page").textContent === "${startPage}"`,
-    { timeout: 1000 * 60 * 60 * 24 },
+    { timeout: 60000 },
   );
 
   const allMangaLinks = [];
@@ -59,7 +59,6 @@ async function fetchMangaLinksChunk(startPage, endPage) {
     try {
       const mangaLinks = await fetchMangaLinks(page);
       allMangaLinks.push(...mangaLinks);
-      // console.log(`Fetched ${allMangaLinks.length} manga links`);
 
       // Check if there is a next page button and click it
       const nextPageButton = await page.$(
@@ -73,7 +72,7 @@ async function fetchMangaLinksChunk(startPage, endPage) {
           `document.querySelector(".current_page").textContent === "${
             currentPage + 1
           }"`,
-          { timeout: 1000 * 60 * 60 * 24 },
+          { timeout: 60000 },
         );
         currentPage++;
       } else {
@@ -106,7 +105,7 @@ async function fetchMangaDetails(mangaLinks) {
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Puppeteer on GitHub Actions
     defaultViewport: null,
-    timeout: 1000 * 60 * 60 * 24,
+    timeout: 120000,
   });
   const page = await browser.newPage();
   const mangaDetails = [];
@@ -115,7 +114,7 @@ async function fetchMangaDetails(mangaLinks) {
     try {
       await page.goto(manga.link, {
         waitUntil: 'networkidle2',
-        timeout: 1000 * 60 * 60 * 24,
+        timeout: 60000,
       });
       const details = await page.evaluate(() => {
         const name = document.querySelector('h1').innerText.trim();
