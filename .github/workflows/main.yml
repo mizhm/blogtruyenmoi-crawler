@@ -26,6 +26,12 @@ jobs:
       - name: Run manga crawler
         run: node index.js
 
+      - name: Upload json file
+        uses: actions/upload-artifact@v3
+        with:
+          name: manga-links
+          path: manga_links.json
+
       - name: Upload Excel file
         uses: actions/upload-artifact@v3
         with:
