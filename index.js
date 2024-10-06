@@ -82,8 +82,8 @@ async function fetchMangaLinksChunk(startPage, endPage, retries = 0) {
           hasNextPage = false;
         }
       } catch (error) {
-        console.error(`Error on page ${currentPage}:`, error.message);
-        hasNextPage = false;
+        // console.error(`Error on page ${currentPage}:`, error.message);
+        return fetchMangaLinksChunk(currentPage, endPage, retries);
       }
     }
 
