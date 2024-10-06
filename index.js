@@ -87,7 +87,7 @@ async function fetchMangaLinksChunk(startPage, endPage) {
     await browser.close();
     return allMangaLinks;
   } catch (error) {
-    fetchMangaLinksChunk(startPage, endPage);
+    fetchMangaLinksChunk(currentPage, endPage);
     console.log('Error:', error.message);
   }
 }
