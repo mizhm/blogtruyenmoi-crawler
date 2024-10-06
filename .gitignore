@@ -48,3 +48,7 @@ jspm_packages/
 
 # Windows files
 Thumbs.db
+
+#Output files
+manga_links.json
+manga_details.json

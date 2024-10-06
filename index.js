@@ -1,15 +1,25 @@
-const fs = require('fs');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const fs = require('fs');
+const xlsx = require('xlsx');
 
 const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
 const totalPages = 1301;
 const chunkSize = 10;
 const maxRetries = 3;
+const requestTimeout = 10000; // 10 seconds
+
+const axiosInstance = axios.create({
+  headers: {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+  },
+  timeout: requestTimeout,
+});
 
 async function fetchMangaLinks(pageNumber) {
   const url = `${baseUrl}?key=tatca&orderBy=1&p=${pageNumber}`;
-  const response = await axios.get(url);
+  const response = await axiosInstance.get(url);
   const $ = cheerio.load(response.data);
   const mangaLinks = [];
   $('.tiptip a').each((index, element) => {
@@ -80,11 +90,9 @@ async function fetchMangaDetails(mangaLinks) {
     let retries = 0;
     while (retries < maxRetries) {
       try {
-        const response = await axios.get(manga.link, {
-          timeout: requestTimeout,
-        });
+        const response = await axiosInstance.get(manga.link);
         const $ = cheerio.load(response.data);
-        const name = $('h1').text().trim();
+        const name = manga.title;
         const author = $('a[href*="/tac-gia/"]')
           .map((i, el) => $(el).text().trim())
           .get()
@@ -151,6 +159,7 @@ async function saveToExcel(fileName, data) {
   xlsx.writeFile(workbook, fileName);
   console.log(`Saved to ${fileName}`);
 }
+
 async function main() {
   const mangaLinks = await fetchAllMangaLinks();
   await saveToJson('manga_links.json', mangaLinks);
