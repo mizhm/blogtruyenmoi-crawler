@@ -2,6 +2,10 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const xlsx = require('xlsx');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+
+puppeteer.use(StealthPlugin());
 
 const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
 const totalPages = 1301;
@@ -9,13 +13,28 @@ const chunkSize = 10;
 const maxRetries = 3;
 const requestTimeout = 10000; // 10 seconds
 
-const axiosInstance = axios.create({
-  headers: {
-    'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36',
-  },
-  timeout: requestTimeout,
-});
+let axiosInstance;
+
+async function initializeAxiosInstance() {
+  const browser = await puppeteer.launch({ headless: true });
+  const page = await browser.newPage();
+  await page.goto(baseUrl, { waitUntil: 'networkidle2' });
+
+  const cookies = await page.cookies();
+  const userAgent = await page.evaluate(() => navigator.userAgent);
+
+  await browser.close();
+
+  axiosInstance = axios.create({
+    headers: {
+      'User-Agent': userAgent,
+      Cookie: cookies
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; '),
+    },
+    timeout: requestTimeout,
+  });
+}
 
 async function fetchMangaLinks(pageNumber) {
   const url = `${baseUrl}?key=tatca&orderBy=1&p=${pageNumber}`;
@@ -161,6 +180,7 @@ async function saveToExcel(fileName, data) {
 }
 
 async function main() {
+  await initializeAxiosInstance(); // Initialize Axios instance with Puppeteer
   const mangaLinks = await fetchAllMangaLinks();
   await saveToJson('manga_links.json', mangaLinks);
   const mangaDetails = await fetchMangaDetails(mangaLinks);
