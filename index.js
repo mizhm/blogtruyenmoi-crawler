@@ -1,9 +1,8 @@
-const axios = require('axios');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const xlsx = require('xlsx');
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 puppeteer.use(StealthPlugin());
 
@@ -13,38 +12,11 @@ const chunkSize = 10;
 const maxRetries = 3;
 const requestTimeout = 10000; // 10 seconds
 
-let axiosInstance;
-
-async function initializeAxiosInstance() {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
-  const page = await browser.newPage();
-  await page.goto(baseUrl, { waitUntil: 'networkidle2' });
-
-  const cookies = await page.cookies();
-  const userAgent = await page.evaluate(() => navigator.userAgent);
-
-  await browser.close();
-
-  axiosInstance = axios.create({
-    headers: {
-      'User-Agent': userAgent,
-      Cookie: cookies
-        .map((cookie) => `${cookie.name}=${cookie.value}`)
-        .join('; '),
-      Referer: baseUrl,
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-    timeout: requestTimeout,
-  });
-}
-
-async function fetchMangaLinks(pageNumber) {
+async function fetchMangaLinks(page, pageNumber) {
   const url = `${baseUrl}?key=tatca&orderBy=1&p=${pageNumber}`;
-  const response = await axiosInstance.get(url);
-  const $ = cheerio.load(response.data);
+  await page.goto(url, { waitUntil: 'networkidle2', timeout: requestTimeout });
+  const content = await page.content();
+  const $ = cheerio.load(content);
   const mangaLinks = [];
   $('.tiptip a').each((index, element) => {
     const link = $(element).attr('href');
@@ -60,14 +32,14 @@ async function fetchMangaLinks(pageNumber) {
   return mangaLinks;
 }
 
-async function fetchMangaLinksChunk(startPage, endPage) {
+async function fetchMangaLinksChunk(page, startPage, endPage) {
   let retries = 0;
   while (retries < maxRetries) {
     try {
       const allMangaLinks = [];
       for (let currentPage = startPage; currentPage <= endPage; currentPage++) {
         try {
-          const mangaLinks = await fetchMangaLinks(currentPage);
+          const mangaLinks = await fetchMangaLinks(page, currentPage);
           allMangaLinks.push(...mangaLinks);
         } catch (error) {
           console.error(`Error on page ${currentPage}:`, error.message);
@@ -92,13 +64,17 @@ async function fetchMangaLinksChunk(startPage, endPage) {
   return [];
 }
 
-async function fetchAllMangaLinks() {
+async function fetchAllMangaLinks(page) {
   const allMangaLinks = [];
   for (let i = 0; i < totalPages; i += chunkSize) {
     const startPage = i + 1;
     const endPage = Math.min(i + chunkSize, totalPages);
     console.log(`Fetching pages ${startPage} to ${endPage}`);
-    const mangaLinksChunk = await fetchMangaLinksChunk(startPage, endPage);
+    const mangaLinksChunk = await fetchMangaLinksChunk(
+      page,
+      startPage,
+      endPage,
+    );
     if (Array.isArray(mangaLinksChunk)) {
       allMangaLinks.push(...mangaLinksChunk);
     } else {
@@ -108,14 +84,18 @@ async function fetchAllMangaLinks() {
   return allMangaLinks;
 }
 
-async function fetchMangaDetails(mangaLinks) {
+async function fetchMangaDetails(page, mangaLinks) {
   const mangaDetails = [];
   for (const manga of mangaLinks) {
     let retries = 0;
     while (retries < maxRetries) {
       try {
-        const response = await axiosInstance.get(manga.link);
-        const $ = cheerio.load(response.data);
+        await page.goto(manga.link, {
+          waitUntil: 'networkidle2',
+          timeout: requestTimeout,
+        });
+        const content = await page.content();
+        const $ = cheerio.load(content);
         const name = $('h1').text().trim();
         const author = $('a[href*="/tac-gia/"]')
           .map((i, el) => $(el).text().trim())
@@ -185,12 +165,19 @@ async function saveToExcel(fileName, data) {
 }
 
 async function main() {
-  await initializeAxiosInstance(); // Initialize Axios instance with Puppeteer
-  const mangaLinks = await fetchAllMangaLinks();
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  const page = await browser.newPage();
+
+  const mangaLinks = await fetchAllMangaLinks(page);
   await saveToJson('manga_links.json', mangaLinks);
-  const mangaDetails = await fetchMangaDetails(mangaLinks);
+  const mangaDetails = await fetchMangaDetails(page, mangaLinks);
   await saveToJson('manga_details.json', mangaDetails);
   await saveToExcel('manga_details.xlsx', mangaDetails);
+
+  await browser.close();
 }
 
 main();
