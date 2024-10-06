@@ -88,8 +88,9 @@ async function fetchMangaDetails(mangaLinks) {
       await page.goto(manga.link, { waitUntil: 'networkidle2' });
       const details = await page.evaluate(() => {
         const name = document.querySelector('h1').innerText.trim();
-        const author = document
-          .querySelectorAll('a[href*="/tac-gia/"]')
+        const author = Array.from(
+          document.querySelectorAll('a[href*="/tac-gia/"]'),
+        )
           .map((el) => el.innerText.trim())
           .join(', ');
         const genre = Array.from(
