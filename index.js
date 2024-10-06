@@ -4,7 +4,7 @@ const fs = require('fs');
 const xlsx = require('xlsx');
 
 const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
-const totalPages = 3;
+const totalPages = 1301;
 const chunkSize = 10;
 const maxRetries = 3;
 const requestTimeout = 10000; // 10 seconds
@@ -12,7 +12,7 @@ const requestTimeout = 10000; // 10 seconds
 const axiosInstance = axios.create({
   headers: {
     'User-Agent':
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
   },
   timeout: requestTimeout,
 });
