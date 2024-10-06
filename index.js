@@ -1,103 +1,61 @@
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const xlsx = require('xlsx');
 const fs = require('fs');
+const axios = require('axios');
+const cheerio = require('cheerio');
 
-puppeteer.use(StealthPlugin());
-
-const baseUrl = 'https://blogtruyenmoi.com/danhsach/tatca';
+const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
 const totalPages = 1301;
 const chunkSize = 10;
-const maxRetries = 5;
+const maxRetries = 3;
 
-async function fetchMangaLinks(page) {
-  const mangaLinks = await page.evaluate(() => {
-    const links = [];
-    document.querySelectorAll('.tiptip a').forEach((element) => {
-      const link = element.getAttribute('href');
-      if (link) {
-        links.push({
-          title: element.textContent.trim().replace(/:$/, ''), // Remove colon at the end
-          link: link.startsWith('http')
-            ? link
-            : `https://blogtruyenmoi.com${link}`,
-        });
-      }
-    });
-    return links;
+async function fetchMangaLinks(pageNumber) {
+  const url = `${baseUrl}?key=tatca&orderBy=1&p=${pageNumber}`;
+  const response = await axios.get(url);
+  const $ = cheerio.load(response.data);
+  const mangaLinks = [];
+  $('.tiptip a').each((index, element) => {
+    const link = $(element).attr('href');
+    if (link) {
+      mangaLinks.push({
+        title: $(element).text().trim().replace(/:$/, ''), // Remove colon at the end
+        link: link.startsWith('http')
+          ? link
+          : `https://blogtruyenmoi.com${link}`,
+      });
+    }
   });
   return mangaLinks;
 }
 
-async function fetchMangaLinksChunk(startPage, endPage, retries = 0) {
-  try {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Puppeteer on GitHub Actions
-      timeout: 120000,
-      defaultViewport: null,
-    });
-
-    const page = await browser.newPage();
-    await page.goto(baseUrl, {
-      waitUntil: 'networkidle2',
-      timeout: 60000,
-    });
-
-    await page.evaluate((startPage) => {
-      window.LoadListMangaPage(startPage);
-    }, startPage);
-
-    await page.waitForFunction(
-      `document.querySelector(".current_page").textContent === "${startPage}"`,
-      { timeout: 60000 },
-    );
-
-    const allMangaLinks = [];
-    let currentPage = startPage;
-    let hasNextPage = true;
-
-    while (hasNextPage && currentPage <= endPage) {
-      try {
-        const mangaLinks = await fetchMangaLinks(page);
-        allMangaLinks.push(...mangaLinks);
-        // console.log(allMangaLinks.length);
-
-        // Check if there is a next page button and click it
-        const nextPageButton = await page.$(
-          `span.page > a[href="javascript:LoadListMangaPage(${
-            currentPage + 1
-          })"]`,
-        );
-        if (nextPageButton) {
-          await nextPageButton.evaluate((button) => button.click());
-          await page.waitForFunction(
-            `document.querySelector(".current_page").textContent === "${
-              currentPage + 1
-            }"`,
-            { timeout: 60000 },
-          );
-          currentPage++;
-        } else {
-          hasNextPage = false;
+async function fetchMangaLinksChunk(startPage, endPage) {
+  let retries = 0;
+  while (retries < maxRetries) {
+    try {
+      const allMangaLinks = [];
+      for (let currentPage = startPage; currentPage <= endPage; currentPage++) {
+        try {
+          const mangaLinks = await fetchMangaLinks(currentPage);
+          allMangaLinks.push(...mangaLinks);
+        } catch (error) {
+          console.error(`Error on page ${currentPage}:`, error.message);
+          break; // Exit the for loop and retry the chunk
         }
-      } catch (error) {
-        // console.error(`Error on page ${currentPage}:`, error.message);
-        return fetchMangaLinksChunk(currentPage, endPage, retries);
       }
-    }
-
-    await browser.close();
-    return allMangaLinks;
-  } catch (error) {
-    if (retries < maxRetries) {
-      return fetchMangaLinksChunk(startPage, endPage, retries + 1);
-    } else {
-      throw new Error(
-        `Failed to fetch chunk ${startPage} to ${endPage} after ${maxRetries} retries`,
+      return allMangaLinks;
+    } catch (error) {
+      console.error(
+        `Error fetching chunk ${startPage} to ${endPage}:`,
+        error.message,
+      );
+      retries++;
+      console.log(
+        `Retrying chunk ${startPage} to ${endPage} (${retries}/${maxRetries})`,
       );
     }
   }
+  console.error(
+    `Failed to fetch chunk ${startPage} to ${endPage} after ${maxRetries} retries`,
+  );
+  return [];
 }
 
 async function fetchAllMangaLinks() {
@@ -107,110 +65,98 @@ async function fetchAllMangaLinks() {
     const endPage = Math.min(i + chunkSize, totalPages);
     console.log(`Fetching pages ${startPage} to ${endPage}`);
     const mangaLinksChunk = await fetchMangaLinksChunk(startPage, endPage);
-    allMangaLinks.push(...mangaLinksChunk);
+    if (Array.isArray(mangaLinksChunk)) {
+      allMangaLinks.push(...mangaLinksChunk);
+    } else {
+      console.error('mangaLinksChunk is not an array:', mangaLinksChunk);
+    }
   }
   return allMangaLinks;
 }
 
 async function fetchMangaDetails(mangaLinks) {
-  try {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for Puppeteer on GitHub Actions
-      defaultViewport: null,
-      timeout: 120000,
-    });
-    const page = await browser.newPage();
-    const mangaDetails = [];
-
-    for (const manga of mangaLinks) {
+  const mangaDetails = [];
+  for (const manga of mangaLinks) {
+    let retries = 0;
+    while (retries < maxRetries) {
       try {
-        await page.goto(manga.link, {
-          waitUntil: 'networkidle2',
-          timeout: 60000,
+        const response = await axios.get(manga.link, {
+          timeout: requestTimeout,
         });
-        const details = await page.evaluate(() => {
-          const name = document.querySelector('h1').innerText.trim();
-          const author = Array.from(
-            document.querySelectorAll('a[href*="/tac-gia/"]'),
-          )
-            .map((el) => el.innerText.trim())
-            .join(', ');
-          const genre = Array.from(
-            document.querySelectorAll('.description a[href*="/theloai/"]'),
-          )
-            .map((el) => el.innerText.trim())
-            .join(', ');
-          const summary = document
-            .querySelector('.detail .content')
-            .innerText.trim();
+        const $ = cheerio.load(response.data);
+        const name = $('h1').text().trim();
+        const author = $('a[href*="/tac-gia/"]')
+          .map((i, el) => $(el).text().trim())
+          .get()
+          .join(', ');
+        const genre = $('.description a[href*="/theloai/"]')
+          .map((i, el) => $(el).text().trim())
+          .get()
+          .join(', ');
+        const summary = $('.detail .content').text().trim();
+        const pageViews = $('#PageViews').text().trim();
+        const likeCount = $('#LikeCount').text().trim();
+        const spanColorRed = $('.description span.color-red');
+        const status = spanColorRed.length
+          ? spanColorRed.last().text().trim()
+          : '';
+        const anotherName =
+          spanColorRed.length > 1
+            ? spanColorRed
+                .slice(0, -1)
+                .map((i, el) => $(el).text().trim())
+                .get()
+                .join(', ')
+            : 'Khong co ten khac';
 
-          const pageViews = document
-            .querySelector('#PageViews')
-            .innerText.trim();
-          const likeCount = document
-            .querySelector('#LikeCount')
-            .innerText.trim();
-          const spanColorRed = document.querySelectorAll(
-            '.description span.color-red',
-          );
-          const status =
-            spanColorRed.length != 0
-              ? spanColorRed[spanColorRed.length - 1].innerText.trim()
-              : spanColorRed[0].innerText.trim();
-          const anotherName =
-            spanColorRed.length > 1
-              ? Array.from(spanColorRed)
-                  .slice(0, -1)
-                  .map((span) => span.innerText.trim())
-                  .join(', ')
-              : 'Khong co ten khac';
-          return {
-            name,
-            author,
-            genre,
-            summary,
-            pageViews,
-            likeCount,
-            status,
-            anotherName,
-          };
+        mangaDetails.push({
+          name,
+          author,
+          genre,
+          summary,
+          pageViews,
+          likeCount,
+          status,
+          anotherName,
+          link: manga.link,
         });
-        mangaDetails.push({ ...manga, ...details });
+        break; // Exit the retry loop on success
       } catch (error) {
+        retries++;
         console.error(
-          `Error fetching details for ${manga.link}:`,
+          `Error fetching details for ${manga.link} (attempt ${retries}/${maxRetries}):`,
           error.message,
         );
+        if (retries >= maxRetries) {
+          console.error(
+            `Failed to fetch details for ${manga.link} after ${maxRetries} attempts`,
+          );
+        }
       }
     }
-
-    await browser.close();
-    return mangaDetails;
-  } catch (error) {
-    fetchMangaDetails(mangaLinks);
   }
+  return mangaDetails;
 }
 
-async function saveToExcel(mangaDetails) {
-  const worksheet = xlsx.utils.json_to_sheet(mangaDetails);
-  const workbook = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(workbook, worksheet, 'Manga Details');
-  xlsx.writeFile(workbook, 'manga_details.xlsx');
-  console.log('Manga details saved to manga_details.xlsx');
-}
-
-async function saveToJson(fileName, mangaDetails) {
-  const jsonContent = JSON.stringify(mangaDetails, null, 2);
+async function saveToJson(fileName, data) {
+  const jsonContent = JSON.stringify(data, null, 2);
   fs.writeFileSync(fileName, jsonContent, 'utf8');
-  console.log('saved to', fileName);
+  console.log(`Saved to ${fileName}`);
 }
 
+async function saveToExcel(fileName, data) {
+  const worksheet = xlsx.utils.json_to_sheet(data);
+  const workbook = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(workbook, worksheet, 'MangaDetails');
+  xlsx.writeFile(workbook, fileName);
+  console.log(`Saved to ${fileName}`);
+}
 async function main() {
   const mangaLinks = await fetchAllMangaLinks();
   await saveToJson('manga_links.json', mangaLinks);
   const mangaDetails = await fetchMangaDetails(mangaLinks);
-  await saveToExcel(mangaDetails);
+  await saveToJson('manga_details.json', mangaDetails);
+  await saveToExcel('manga_details.xlsx', mangaDetails);
 }
 
 main();
