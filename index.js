@@ -11,7 +11,7 @@ const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
 const totalPages = 1301;
 const chunkSize = 10;
 const maxRetries = 3;
-const requestTimeout = 10000; // 10 seconds
+const requestTimeout = 30000; // 30 seconds
 
 let axiosInstance;
 
@@ -61,35 +61,12 @@ async function fetchMangaLinks(pageNumber) {
 }
 
 async function fetchMangaLinksChunk(startPage, endPage) {
-  let retries = 0;
-  while (retries < maxRetries) {
-    try {
-      const allMangaLinks = [];
-      for (let currentPage = startPage; currentPage <= endPage; currentPage++) {
-        try {
-          const mangaLinks = await fetchMangaLinks(currentPage);
-          allMangaLinks.push(...mangaLinks);
-        } catch (error) {
-          console.error(`Error on page ${currentPage}:`, error.message);
-          break; // Exit the for loop and retry the chunk
-        }
-      }
-      return allMangaLinks;
-    } catch (error) {
-      console.error(
-        `Error fetching chunk ${startPage} to ${endPage}:`,
-        error.message,
-      );
-      retries++;
-      console.log(
-        `Retrying chunk ${startPage} to ${endPage} (${retries}/${maxRetries})`,
-      );
-    }
+  const promises = [];
+  for (let currentPage = startPage; currentPage <= endPage; currentPage++) {
+    promises.push(fetchMangaLinks(currentPage));
   }
-  console.error(
-    `Failed to fetch chunk ${startPage} to ${endPage} after ${maxRetries} retries`,
-  );
-  return [];
+  const results = await Promise.all(promises);
+  return results.flat();
 }
 
 async function fetchAllMangaLinks() {
@@ -99,18 +76,13 @@ async function fetchAllMangaLinks() {
     const endPage = Math.min(i + chunkSize, totalPages);
     console.log(`Fetching pages ${startPage} to ${endPage}`);
     const mangaLinksChunk = await fetchMangaLinksChunk(startPage, endPage);
-    if (Array.isArray(mangaLinksChunk)) {
-      allMangaLinks.push(...mangaLinksChunk);
-    } else {
-      console.error('mangaLinksChunk is not an array:', mangaLinksChunk);
-    }
+    allMangaLinks.push(...mangaLinksChunk);
   }
   return allMangaLinks;
 }
 
 async function fetchMangaDetails(mangaLinks) {
-  const mangaDetails = [];
-  for (const manga of mangaLinks) {
+  const promises = mangaLinks.map(async (manga) => {
     let retries = 0;
     while (retries < maxRetries) {
       try {
@@ -141,7 +113,7 @@ async function fetchMangaDetails(mangaLinks) {
                 .join(', ')
             : 'Khong co ten khac';
 
-        mangaDetails.push({
+        return {
           name,
           author,
           genre,
@@ -151,8 +123,7 @@ async function fetchMangaDetails(mangaLinks) {
           status,
           anotherName,
           link: manga.link,
-        });
-        break; // Exit the retry loop on success
+        };
       } catch (error) {
         retries++;
         console.error(
@@ -163,11 +134,14 @@ async function fetchMangaDetails(mangaLinks) {
           console.error(
             `Failed to fetch details for ${manga.link} after ${maxRetries} attempts`,
           );
+          return null;
         }
       }
     }
-  }
-  return mangaDetails;
+  });
+
+  const results = await Promise.all(promises);
+  return results.filter((result) => result !== null);
 }
 
 async function saveToJson(fileName, data) {
