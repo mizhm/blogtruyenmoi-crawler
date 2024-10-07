@@ -93,8 +93,10 @@ async function fetchMangaLinks(pageNumber, cookies) {
       if (
         attempt === maxRetries ||
         (error.response && error.response.status !== 500)
-      )
-        throw error;
+      ) {
+        console.error(`Skipping page ${pageNumber} due to repeated errors.`);
+        return []; // Return an empty array to skip the links for this page
+      }
       const retryAfter =
         error.response && error.response.headers['retry-after'];
       const delay = retryAfter
@@ -176,8 +178,12 @@ async function fetchMangaDetails(manga, cookies) {
       if (
         attempt === maxRetries ||
         (error.response && error.response.status !== 500)
-      )
-        throw error;
+      ) {
+        console.error(
+          `Skipping details for ${manga.link} due to repeated errors.`,
+        );
+        return null; // Return null to skip the details for this manga
+      }
       const retryAfter =
         error.response && error.response.headers['retry-after'];
       const delay = retryAfter
