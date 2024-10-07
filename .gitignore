@@ -52,3 +52,4 @@ Thumbs.db
 #Output files
 manga_links.json
 manga_details.json
+progress.json
