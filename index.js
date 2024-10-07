@@ -7,6 +7,7 @@ const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
 const totalPages = 1301;
 const maxRetries = 3;
 const requestTimeout = 1000 * 60 * 60; // 1 hour
+const delayBetweenRequests = 1000; // 1 second delay between requests
 
 async function fetchMangaLinks(pageNumber) {
   const url = `${baseUrl}?key=tatca&orderBy=1&p=${pageNumber}`;
@@ -33,6 +34,7 @@ async function fetchMangaLinks(pageNumber) {
         error.message,
       );
       if (attempt === maxRetries) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayBetweenRequests)); // Delay before retrying
     }
   }
 }
@@ -43,6 +45,7 @@ async function fetchAllMangaLinks() {
     console.log(`Fetching page ${page}`);
     const mangaLinks = await fetchMangaLinks(page);
     allMangaLinks.push(...mangaLinks);
+    await new Promise((resolve) => setTimeout(resolve, delayBetweenRequests)); // Delay between requests
   }
   return allMangaLinks;
 }
@@ -52,7 +55,7 @@ async function fetchMangaDetails(manga) {
     try {
       const response = await axios.get(manga.link, { timeout: requestTimeout });
       const $ = cheerio.load(response.data);
-      const name = $('h1').text().trim();
+      const name = manga.title;
       const author = $('a[href*="/tac-gia/"]')
         .map((i, el) => $(el).text().trim())
         .get()
@@ -94,6 +97,7 @@ async function fetchMangaDetails(manga) {
         error.message,
       );
       if (attempt === maxRetries) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayBetweenRequests)); // Delay before retrying
     }
   }
 }
@@ -106,6 +110,7 @@ async function fetchAllMangaDetails(mangaLinks) {
     if (mangaDetails) {
       allMangaDetails.push(mangaDetails);
     }
+    await new Promise((resolve) => setTimeout(resolve, delayBetweenRequests)); // Delay between requests
   }
   return allMangaDetails;
 }
