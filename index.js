@@ -1,147 +1,113 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
 const fs = require('fs');
 const xlsx = require('xlsx');
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-
-puppeteer.use(StealthPlugin());
+const axios = require('axios');
+const cheerio = require('cheerio');
 
 const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
 const totalPages = 1301;
-const chunkSize = 10;
 const maxRetries = 3;
-const requestTimeout = 30000; // 30 seconds
-
-let axiosInstance;
-
-async function initializeAxiosInstance() {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
-  const page = await browser.newPage();
-  await page.goto(baseUrl, { waitUntil: 'networkidle2' });
-
-  const cookies = await page.cookies();
-  const userAgent = await page.evaluate(() => navigator.userAgent);
-
-  await browser.close();
-
-  axiosInstance = axios.create({
-    headers: {
-      'User-Agent': userAgent,
-      Cookie: cookies
-        .map((cookie) => `${cookie.name}=${cookie.value}`)
-        .join('; '),
-      Referer: baseUrl,
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-    timeout: requestTimeout,
-  });
-}
+const requestTimeout = 1000 * 60 * 60; // 1 hour
 
 async function fetchMangaLinks(pageNumber) {
   const url = `${baseUrl}?key=tatca&orderBy=1&p=${pageNumber}`;
-  const response = await axiosInstance.get(url);
-  const $ = cheerio.load(response.data);
-  const mangaLinks = [];
-  $('.tiptip a').each((index, element) => {
-    const link = $(element).attr('href');
-    if (link) {
-      mangaLinks.push({
-        title: $(element).text().trim().replace(/:$/, ''), // Remove colon at the end
-        link: link.startsWith('http')
-          ? link
-          : `https://blogtruyenmoi.com${link}`,
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.get(url, { timeout: requestTimeout });
+      const $ = cheerio.load(response.data);
+      const mangaLinks = [];
+      $('.tiptip a').each((index, element) => {
+        const link = $(element).attr('href');
+        if (link) {
+          mangaLinks.push({
+            title: $(element).text().trim().replace(/:$/, ''), // Remove colon at the end
+            link: link.startsWith('http')
+              ? link
+              : `https://blogtruyenmoi.com${link}`,
+          });
+        }
       });
+      return mangaLinks;
+    } catch (error) {
+      console.error(
+        `Error fetching links for page ${pageNumber} (attempt ${attempt}/${maxRetries}):`,
+        error.message,
+      );
+      if (attempt === maxRetries) throw error;
     }
-  });
-  return mangaLinks;
-}
-
-async function fetchMangaLinksChunk(startPage, endPage) {
-  const promises = [];
-  for (let currentPage = startPage; currentPage <= endPage; currentPage++) {
-    promises.push(fetchMangaLinks(currentPage));
   }
-  const results = await Promise.all(promises);
-  return results.flat();
 }
 
 async function fetchAllMangaLinks() {
   const allMangaLinks = [];
-  for (let i = 0; i < totalPages; i += chunkSize) {
-    const startPage = i + 1;
-    const endPage = Math.min(i + chunkSize, totalPages);
-    console.log(`Fetching pages ${startPage} to ${endPage}`);
-    const mangaLinksChunk = await fetchMangaLinksChunk(startPage, endPage);
-    allMangaLinks.push(...mangaLinksChunk);
+  for (let page = 1; page <= totalPages; page++) {
+    console.log(`Fetching page ${page}`);
+    const mangaLinks = await fetchMangaLinks(page);
+    allMangaLinks.push(...mangaLinks);
   }
   return allMangaLinks;
 }
 
-async function fetchMangaDetails(mangaLinks) {
-  const promises = mangaLinks.map(async (manga) => {
-    let retries = 0;
-    while (retries < maxRetries) {
-      try {
-        const response = await axiosInstance.get(manga.link);
-        const $ = cheerio.load(response.data);
-        const name = $('h1').text().trim();
-        const author = $('a[href*="/tac-gia/"]')
-          .map((i, el) => $(el).text().trim())
-          .get()
-          .join(', ');
-        const genre = $('.description a[href*="/theloai/"]')
-          .map((i, el) => $(el).text().trim())
-          .get()
-          .join(', ');
-        const summary = $('.detail .content').text().trim();
-        const pageViews = $('#PageViews').text().trim();
-        const likeCount = $('#LikeCount').text().trim();
-        const spanColorRed = $('.description span.color-red');
-        const status = spanColorRed.length
-          ? spanColorRed.last().text().trim()
-          : '';
-        const anotherName =
-          spanColorRed.length > 1
-            ? spanColorRed
-                .slice(0, -1)
-                .map((i, el) => $(el).text().trim())
-                .get()
-                .join(', ')
-            : 'Khong co ten khac';
+async function fetchMangaDetails(manga) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.get(manga.link, { timeout: requestTimeout });
+      const $ = cheerio.load(response.data);
+      const name = $('h1').text().trim();
+      const author = $('a[href*="/tac-gia/"]')
+        .map((i, el) => $(el).text().trim())
+        .get()
+        .join(', ');
+      const genre = $('.description a[href*="/theloai/"]')
+        .map((i, el) => $(el).text().trim())
+        .get()
+        .join(', ');
+      const summary = $('.detail .content').text().trim();
+      const pageViews = $('#PageViews').text().trim();
+      const likeCount = $('#LikeCount').text().trim();
+      const spanColorRed = $('.description span.color-red');
+      const status = spanColorRed.length
+        ? spanColorRed.last().text().trim()
+        : '';
+      const anotherName =
+        spanColorRed.length > 1
+          ? spanColorRed
+              .slice(0, -1)
+              .map((i, el) => $(el).text().trim())
+              .get()
+              .join(', ')
+          : 'Khong co ten khac';
 
-        return {
-          name,
-          author,
-          genre,
-          summary,
-          pageViews,
-          likeCount,
-          status,
-          anotherName,
-          link: manga.link,
-        };
-      } catch (error) {
-        retries++;
-        console.error(
-          `Error fetching details for ${manga.link} (attempt ${retries}/${maxRetries}):`,
-          error.message,
-        );
-        if (retries >= maxRetries) {
-          console.error(
-            `Failed to fetch details for ${manga.link} after ${maxRetries} attempts`,
-          );
-          return null;
-        }
-      }
+      return {
+        name,
+        author,
+        genre,
+        summary,
+        pageViews,
+        likeCount,
+        status,
+        anotherName,
+        link: manga.link,
+      };
+    } catch (error) {
+      console.error(
+        `Error fetching details for ${manga.link} (attempt ${attempt}/${maxRetries}):`,
+        error.message,
+      );
+      if (attempt === maxRetries) throw error;
     }
-  });
+  }
+}
 
-  const results = await Promise.all(promises);
-  return results.filter((result) => result !== null);
+async function fetchAllMangaDetails(mangaLinks) {
+  const allMangaDetails = [];
+  for (const manga of mangaLinks) {
+    console.log(`Fetching details for ${manga.title}`);
+    const mangaDetails = await fetchMangaDetails(manga);
+    if (mangaDetails) {
+      allMangaDetails.push(mangaDetails);
+    }
+  }
+  return allMangaDetails;
 }
 
 async function saveToJson(fileName, data) {
@@ -159,10 +125,9 @@ async function saveToExcel(fileName, data) {
 }
 
 async function main() {
-  await initializeAxiosInstance(); // Initialize Axios instance with Puppeteer
   const mangaLinks = await fetchAllMangaLinks();
   await saveToJson('manga_links.json', mangaLinks);
-  const mangaDetails = await fetchMangaDetails(mangaLinks);
+  const mangaDetails = await fetchAllMangaDetails(mangaLinks);
   await saveToJson('manga_details.json', mangaDetails);
   await saveToExcel('manga_details.xlsx', mangaDetails);
 }
