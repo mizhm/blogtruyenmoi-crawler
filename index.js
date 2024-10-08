@@ -80,7 +80,7 @@ async function fetchMangaLinks(pageNumber, cookies) {
             title: $(element).text().trim().replace(/:$/, ''), // Remove colon at the end
             link: link.startsWith('http')
               ? link
-              : `https://blogtruyenmoi.com${link}`,
+              : `https://blogtruyenvn.com${link}`,
           });
         }
       });
