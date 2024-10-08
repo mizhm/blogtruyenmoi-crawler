@@ -7,8 +7,8 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 puppeteer.use(StealthPlugin());
 
-const baseUrl = 'https://blogtruyenmoi.com/ajax/Search/AjaxLoadListManga';
-const totalPages = 1301; // Adjust this to the actual number of pages you want to fetch
+const baseUrl = 'https://blogtruyenvn.com/ajax/Search/AjaxLoadListManga';
+const totalPages = 1654; // Adjust this to the actual number of pages you want to fetch
 const maxRetries = 3;
 const requestTimeout = 1000 * 60 * 5; // 5 minutes
 const delayBetweenRequests = 1000; // 1 seconds delay between requests
@@ -223,7 +223,8 @@ async function main() {
     const initialUrl = `${baseUrl}?key=tatca&orderBy=1&p=1`;
     const cookies = await fetchInitialCookies(initialUrl);
     const mangaLinks = await fetchAllMangaLinks(progress, cookies);
-    const allMangaLinks = loadJson(mangaLinksFile); // Load all manga links from JSON file
+    const allMangaLinks = loadJson(mangaLinksFile);
+    await saveToExcel('manga_links.xlsx', allMangaLinks);
     const mangaDetails = await fetchAllMangaDetails(
       allMangaLinks,
       progress,
@@ -232,6 +233,7 @@ async function main() {
     const allMangaDetails = loadJson(mangaDetailsFile); // Load all manga details from JSON file
     await saveToExcel('manga_details.xlsx', allMangaDetails);
     console.log('Process completed successfully.');
+    console.log(allMangaLinks.length);
   } catch (error) {
     console.error('An error occurred:', error);
   }
